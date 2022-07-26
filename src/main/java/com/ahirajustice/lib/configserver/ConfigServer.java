@@ -6,9 +6,13 @@ import com.ahirajustice.lib.configserver.exceptions.ConfigInitializationExceptio
 import com.ahirajustice.lib.configserver.exceptions.ConfigServerConfigurationException;
 import com.ahirajustice.lib.configserver.models.ConfigEntry;
 import com.ahirajustice.lib.configserver.models.LoginResponse;
+import com.ahirajustice.lib.configserver.models.SimpleMessageResponse;
 import com.ahirajustice.lib.configserver.requests.ClientLoginRequest;
 import org.apache.commons.lang3.EnumUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.SpringApplication;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -23,6 +27,10 @@ import java.util.List;
 import java.util.Map;
 
 public class ConfigServer {
+
+    private static Class<?> application;
+    private static ConfigurableApplicationContext context;
+    private static ApplicationArguments args;
 
     public static void getConfig() {
         Map<String, String> envVars = System.getenv();
@@ -127,6 +135,46 @@ public class ConfigServer {
         catch (IOException ex) {
             throw new ConfigInitializationException(ex.getMessage());
         }
+    }
+
+    public static SimpleMessageResponse refreshConfig(List<ConfigEntry> configEntries) {
+        try {
+            persistConfig(configEntries);
+            restart();
+
+            return SimpleMessageResponse.builder()
+                    .message("Successfully refreshed application config")
+                    .success(true)
+                    .build();
+        }
+        catch (ConfigInitializationException ex) {
+            return SimpleMessageResponse.builder()
+                    .message("Error occurred while persisting application config")
+                    .success(false)
+                    .build();
+        }
+        catch (Exception ex) {
+            return SimpleMessageResponse.builder()
+                    .message("Error occurred while restarting application")
+                    .success(false)
+                    .build();
+        }
+    }
+
+    public static void configureRestart(Class<?> applicationClass, ConfigurableApplicationContext applicationContext) {
+        application = applicationClass;
+        context = applicationContext;
+        args = context.getBean(ApplicationArguments.class);
+    }
+
+    private static void restart() {
+        Thread thread = new Thread(() -> {
+            context.close();
+            context = SpringApplication.run(application, args.getSourceArgs());
+        });
+
+        thread.setDaemon(false);
+        thread.start();
     }
 
 }
