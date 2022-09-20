@@ -9,5 +9,6 @@ public class ConfigEntry {
 
     private String configKey;
     private String configValue;
+    private Boolean encrypted;
 
 }

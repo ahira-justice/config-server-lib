@@ -8,6 +8,7 @@ import com.ahirajustice.lib.configserver.models.ConfigEntry;
 import com.ahirajustice.lib.configserver.models.LoginResponse;
 import com.ahirajustice.lib.configserver.models.SimpleMessageResponse;
 import com.ahirajustice.lib.configserver.requests.ClientLoginRequest;
+import com.ahirajustice.lib.configserver.utils.CipherUtils;
 import org.apache.commons.lang3.EnumUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.boot.ApplicationArguments;
@@ -31,6 +32,7 @@ public class ConfigServer {
     private static Class<?> application;
     private static ConfigurableApplicationContext context;
     private static ApplicationArguments args;
+    private static String privateKey;
 
     public static void getConfig() {
         Map<String, String> envVars = System.getenv();
@@ -40,6 +42,8 @@ public class ConfigServer {
         String baseUrl = envVars.get("CONFIG_SERVER_BASE_URL");
         String environment = envVars.get("CONFIG_ENVIRONMENT");
 
+        privateKey = envVars.get("CONFIG_SERVER_PRIVATE_KEY");
+
         List<String> errors = new ArrayList<>();
 
         if (StringUtils.isBlank(clientId))
@@ -48,10 +52,12 @@ public class ConfigServer {
             errors.add("CONFIG_SERVER_CLIENT_SECRET");
         if (StringUtils.isBlank(baseUrl))
             errors.add("CONFIG_SERVER_BASE_URL");
+        if (StringUtils.isBlank(privateKey))
+            errors.add("CONFIG_SERVER_PRIVATE_KEY");
         if (StringUtils.isBlank(environment) || !EnumUtils.isValidEnum(ConfigEnvironment.class, environment))
             errors.add("CONFIG_ENVIRONMENT");
 
-        if (errors.size() == 4) {
+        if (errors.size() == 5) {
             return;
         }
 
@@ -123,7 +129,13 @@ public class ConfigServer {
         StringBuilder config = new StringBuilder();
 
         for (ConfigEntry configEntry: configEntries) {
-            config.append(String.format("%s=%s", configEntry.getConfigKey(), configEntry.getConfigValue()));
+            String configValue = configEntry.getConfigValue();
+
+            if (configEntry.getEncrypted()) {
+                configValue = decrypt(configValue);
+            }
+            
+            config.append(String.format("%s=%s", configEntry.getConfigKey(), configValue));
             config.append("\n");
         }
 
@@ -135,6 +147,10 @@ public class ConfigServer {
         catch (IOException ex) {
             throw new ConfigInitializationException(ex.getMessage());
         }
+    }
+
+    private static String decrypt(String configValue) {
+        return CipherUtils.decryptString(configValue, privateKey);
     }
 
     public static SimpleMessageResponse refreshConfig(List<ConfigEntry> configEntries) {
