@@ -4,7 +4,7 @@
 
 config-server-lib is a spring boot integration lib for [config-server](https://github.com/ahira-justice/config-server).
 
-It bootstraps your application by fetching config from the config-server automatically on startup. It also provides your application with a _/refresh_ callback endpoint that _config-server_ can use to remotely trigger a config refresh and restart of your spring application.
+It bootstraps your application by fetching config from the config-server automatically on startup. It also provides your application with a _/refresh_ callback endpoint that _config-server_ can use to remotely trigger a config refresh and restart of your spring boot application.
 
 ## Usage
 **Application.java** - _example_
@@ -71,16 +71,16 @@ Add config-server-lib as a dependency
 <dependency>
   <groupId>com.ahirajustice</groupId>
   <artifactId>config-server-lib</artifactId>
-  <version>0.0.2</version>
+  <version>0.0.3</version>
 </dependency>
 ```
 
 **build.gradle**
 ```groovy
-implementation 'com.ahirajustice:config-server-lib:0.0.2'
+implementation 'com.ahirajustice:config-server-lib:0.0.3'
 ```
 
-For more options with different build tools, check out [https://search.maven.org/artifact/com.ahirajustice/config-server-lib/0.0.2/jar](https://search.maven.org/artifact/com.ahirajustice/config-server-lib/0.0.2/jar)
+For more options with different build tools, check out [https://search.maven.org/artifact/com.ahirajustice/config-server-lib/0.0.3/jar](https://search.maven.org/artifact/com.ahirajustice/config-server-lib/0.0.3/jar)
 
 ## License
 
