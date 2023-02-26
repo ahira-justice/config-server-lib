@@ -2,7 +2,7 @@
 
 ## What is config-server-lib?
 
-config-server-lib is a spring-boot integration lib for [config-server](https://github.com/ahira-justice/config-server).
+config-server-lib is a spring boot integration lib for [config-server](https://github.com/ahira-justice/config-server).
 
 It bootstraps your application by fetching config from the config-server automatically on startup. It also provides your application with a _/refresh_ callback endpoint that _config-server_ can use to remotely trigger a config refresh and restart of your spring application.
 
