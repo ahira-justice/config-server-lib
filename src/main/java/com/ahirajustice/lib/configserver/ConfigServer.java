@@ -9,6 +9,9 @@ import com.ahirajustice.lib.configserver.models.LoginResponse;
 import com.ahirajustice.lib.configserver.models.SimpleMessageResponse;
 import com.ahirajustice.lib.configserver.requests.ClientLoginRequest;
 import com.ahirajustice.lib.configserver.utils.CipherUtils;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.EnumUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.boot.ApplicationArguments;
@@ -27,22 +30,51 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 public class ConfigServer {
 
+    @Getter
+    @Setter
+    private static boolean broadcaster;
+    @Getter
+    private static boolean enabled;
     private static Class<?> application;
     private static ConfigurableApplicationContext context;
     private static ApplicationArguments args;
+    private static String clientId;
+    private static String clientSecret;
+    private static String baseUrl;
+    private static String environment;
     private static String privateKey;
+    @Getter
+    private static String kafkaBootstrapServers;
+    @Getter
+    private static String kafkaSecurityProtocol;
+    @Getter
+    private static String kafkaSaslMechanism;
+    @Getter
+    private static String kafkaSaslJaasConfig;
+    @Getter
+    private static String kafkaSessionTimeoutMs;
+    @Getter
+    private static String kafkaClientDnsLookup;
+    private static String podName;
 
     public static void getConfig() {
         Map<String, String> envVars = System.getenv();
 
-        String clientId = envVars.get("CONFIG_SERVER_CLIENT_ID");
-        String clientSecret = envVars.get("CONFIG_SERVER_CLIENT_SECRET");
-        String baseUrl = envVars.get("CONFIG_SERVER_BASE_URL");
-        String environment = envVars.get("CONFIG_ENVIRONMENT");
-
+        clientId = envVars.get("CONFIG_SERVER_CLIENT_ID");
+        clientSecret = envVars.get("CONFIG_SERVER_CLIENT_SECRET");
+        baseUrl = envVars.get("CONFIG_SERVER_BASE_URL");
+        environment = envVars.get("CONFIG_ENVIRONMENT");
         privateKey = envVars.get("CONFIG_SERVER_PRIVATE_KEY");
+        kafkaBootstrapServers = envVars.get("CONFIG_SERVER_KAFKA_BOOTSTRAP_SERVERS");
+        kafkaSecurityProtocol = envVars.get("CONFIG_SERVER_KAFKA_SECURITY_PROTOCOL");
+        kafkaSaslMechanism = envVars.get("CONFIG_SERVER_KAFKA_SASL_MECHANISM");
+        kafkaSaslJaasConfig = envVars.get("CONFIG_SERVER_KAFKA_SASL_JAAS_CONFIG");
+        kafkaSessionTimeoutMs = envVars.get("CONFIG_SERVER_KAFKA_SESSION_TIMEOUT_MS");
+        kafkaClientDnsLookup = envVars.get("CONFIG_SERVER_KAFKA_CLIENT_DNS_LOOKUP");
+        podName = envVars.get("HOSTNAME");
 
         List<String> errors = new ArrayList<>();
 
@@ -52,12 +84,22 @@ public class ConfigServer {
             errors.add("CONFIG_SERVER_CLIENT_SECRET");
         if (StringUtils.isBlank(baseUrl))
             errors.add("CONFIG_SERVER_BASE_URL");
-        if (StringUtils.isBlank(privateKey))
-            errors.add("CONFIG_SERVER_PRIVATE_KEY");
         if (StringUtils.isBlank(environment) || !EnumUtils.isValidEnum(ConfigEnvironment.class, environment))
             errors.add("CONFIG_ENVIRONMENT");
+        if (StringUtils.isBlank(privateKey))
+            errors.add("CONFIG_SERVER_PRIVATE_KEY");
+        if (StringUtils.isBlank(kafkaBootstrapServers))
+            errors.add("CONFIG_SERVER_KAFKA_BOOTSTRAP_SERVERS");
+        if (StringUtils.isBlank(kafkaSecurityProtocol))
+            errors.add("CONFIG_SERVER_KAFKA_SECURITY_PROTOCOL");
+        if (StringUtils.isBlank(kafkaSaslMechanism))
+            errors.add("CONFIG_SERVER_KAFKA_SASL_MECHANISM");
+        if (StringUtils.isBlank(kafkaSaslJaasConfig))
+            errors.add("CONFIG_SERVER_KAFKA_SASL_JAAS_CONFIG");
+        if (StringUtils.isBlank(podName))
+            errors.add("HOSTNAME");
 
-        if (errors.size() == 5) {
+        if (errors.size() == 10) {
             return;
         }
 
@@ -70,6 +112,8 @@ public class ConfigServer {
 
             throw new ConfigServerConfigurationException(message);
         }
+
+        enabled = true;
 
         LoginResponse loginResponse = fetchAuthToken(baseUrl, clientId, clientSecret);
         List<ConfigEntry> configEntries = fetchConfig(baseUrl, loginResponse, ConfigEnvironment.valueOf(environment));
@@ -128,7 +172,7 @@ public class ConfigServer {
     private static void persistConfig(List<ConfigEntry> configEntries) {
         StringBuilder config = new StringBuilder();
 
-        for (ConfigEntry configEntry: configEntries) {
+        for (ConfigEntry configEntry : configEntries) {
             String configValue = configEntry.getConfigValue();
 
             if (configEntry.getEncrypted()) {
@@ -158,22 +202,14 @@ public class ConfigServer {
             persistConfig(configEntries);
             restart();
 
-            return SimpleMessageResponse.builder()
-                    .message("Successfully refreshed application config")
-                    .success(true)
-                    .build();
+            return SimpleMessageResponse.success("Successfully refreshed application config");
         }
         catch (ConfigInitializationException ex) {
-            return SimpleMessageResponse.builder()
-                    .message("Error occurred while persisting application config")
-                    .success(false)
-                    .build();
+            return SimpleMessageResponse.fail("Error occurred while persisting application config");
         }
         catch (Exception ex) {
-            return SimpleMessageResponse.builder()
-                    .message("Error occurred while restarting application")
-                    .success(false)
-                    .build();
+            log.error(ex.getMessage(), ex);
+            return SimpleMessageResponse.fail("An error occurred while refreshing application config. Check application logs.");
         }
     }
 
@@ -191,6 +227,21 @@ public class ConfigServer {
 
         thread.setDaemon(false);
         thread.start();
+    }
+
+    public static void pullConfig() {
+        LoginResponse loginResponse = fetchAuthToken(baseUrl, clientId, clientSecret);
+        List<ConfigEntry> configEntries = fetchConfig(baseUrl, loginResponse, ConfigEnvironment.valueOf(environment));
+        persistConfig(configEntries);
+        restart();
+    }
+
+    public static String getTopic() {
+        return clientId;
+    }
+
+    public static String getGroupId() {
+        return podName;
     }
 
 }

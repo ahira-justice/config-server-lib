@@ -16,4 +16,18 @@ public class SimpleMessageResponse {
     private String message;
     private boolean success;
 
+    public static SimpleMessageResponse success(String message) {
+        return SimpleMessageResponse.builder()
+                .message(message)
+                .success(true)
+                .build();
+    }
+
+    public static SimpleMessageResponse fail(String message) {
+        return SimpleMessageResponse.builder()
+                .message(message)
+                .success(false)
+                .build();
+    }
+
 }
