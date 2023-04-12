@@ -1,0 +1,2 @@
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+com.ahirajustice.lib.configserver.autoconfig.ConfigServerAutoconfiguration
