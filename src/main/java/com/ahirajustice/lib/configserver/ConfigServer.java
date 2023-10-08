@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Slf4j
 public class ConfigServer {
@@ -38,7 +39,7 @@ public class ConfigServer {
     private static boolean broadcaster;
     @Getter
     private static boolean enabled;
-    private static Class<?> application;
+    private static Class<?>[] sources;
     private static ConfigurableApplicationContext context;
     private static ApplicationArguments args;
     private static String clientId;
@@ -213,8 +214,8 @@ public class ConfigServer {
         }
     }
 
-    public static void configureRestart(Class<?> applicationClass, ConfigurableApplicationContext applicationContext) {
-        application = applicationClass;
+    public static void configureRestart(ConfigurableApplicationContext applicationContext, Set<Class<?>> primarySources) {
+        sources = primarySources.toArray(Class[]::new);
         context = applicationContext;
         args = context.getBean(ApplicationArguments.class);
     }
@@ -222,7 +223,7 @@ public class ConfigServer {
     private static void restart() {
         Thread thread = new Thread(() -> {
             context.close();
-            context = SpringApplication.run(application, args.getSourceArgs());
+            context = SpringApplication.run(sources, args.getSourceArgs());
         });
 
         thread.setDaemon(false);

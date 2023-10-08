@@ -1,2 +1,4 @@
 org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-com.ahirajustice.lib.configserver.autoconfig.ConfigServerAutoconfiguration
+  com.ahirajustice.lib.configserver.autoconfig.ConfigServerAutoconfiguration
+org.springframework.context.ApplicationListener=\
+  com.ahirajustice.lib.configserver.startup.ConfigServerApplicationEventListener
