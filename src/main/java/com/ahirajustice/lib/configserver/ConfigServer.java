@@ -1,18 +1,15 @@
 package com.ahirajustice.lib.configserver;
 
-import com.ahirajustice.lib.configserver.enums.ConfigEnvironment;
+import com.ahirajustice.lib.configserver.constants.SecurityConstants;
 import com.ahirajustice.lib.configserver.exceptions.ConfigFetchException;
 import com.ahirajustice.lib.configserver.exceptions.ConfigInitializationException;
 import com.ahirajustice.lib.configserver.exceptions.ConfigServerConfigurationException;
 import com.ahirajustice.lib.configserver.models.ConfigEntry;
-import com.ahirajustice.lib.configserver.models.LoginResponse;
 import com.ahirajustice.lib.configserver.models.SimpleMessageResponse;
-import com.ahirajustice.lib.configserver.requests.ClientLoginRequest;
 import com.ahirajustice.lib.configserver.utils.CipherUtils;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.EnumUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.SpringApplication;
@@ -42,10 +39,9 @@ public class ConfigServer {
     private static Class<?>[] sources;
     private static ConfigurableApplicationContext context;
     private static ApplicationArguments args;
-    private static String clientId;
-    private static String clientSecret;
+    private static String serviceId;
+    private static String secretKey;
     private static String baseUrl;
-    private static String environment;
     private static String privateKey;
     @Getter
     private static String kafkaBootstrapServers;
@@ -64,10 +60,8 @@ public class ConfigServer {
     public static void getConfig() {
         Map<String, String> envVars = System.getenv();
 
-        clientId = envVars.get("CONFIG_SERVER_CLIENT_ID");
-        clientSecret = envVars.get("CONFIG_SERVER_CLIENT_SECRET");
+        secretKey = envVars.get("CONFIG_SERVER_SECRET_KEY");
         baseUrl = envVars.get("CONFIG_SERVER_BASE_URL");
-        environment = envVars.get("CONFIG_ENVIRONMENT");
         privateKey = envVars.get("CONFIG_SERVER_PRIVATE_KEY");
         kafkaBootstrapServers = envVars.get("CONFIG_SERVER_KAFKA_BOOTSTRAP_SERVERS");
         kafkaSecurityProtocol = envVars.get("CONFIG_SERVER_KAFKA_SECURITY_PROTOCOL");
@@ -79,14 +73,10 @@ public class ConfigServer {
 
         List<String> errors = new ArrayList<>();
 
-        if (StringUtils.isBlank(clientId))
-            errors.add("CONFIG_SERVER_CLIENT_ID");
-        if (StringUtils.isBlank(clientSecret))
+        if (StringUtils.isBlank(secretKey))
             errors.add("CONFIG_SERVER_CLIENT_SECRET");
         if (StringUtils.isBlank(baseUrl))
             errors.add("CONFIG_SERVER_BASE_URL");
-        if (StringUtils.isBlank(environment) || !EnumUtils.isValidEnum(ConfigEnvironment.class, environment))
-            errors.add("CONFIG_ENVIRONMENT");
         if (StringUtils.isBlank(privateKey))
             errors.add("CONFIG_SERVER_PRIVATE_KEY");
         if (StringUtils.isBlank(kafkaBootstrapServers))
@@ -100,7 +90,7 @@ public class ConfigServer {
         if (StringUtils.isBlank(podName))
             errors.add("HOSTNAME");
 
-        if (errors.size() == 10) {
+        if (errors.size() == 8) {
             return;
         }
 
@@ -115,48 +105,23 @@ public class ConfigServer {
         }
 
         enabled = true;
+        serviceId = envVars.get("SERVICE_NAME");
 
-        LoginResponse loginResponse = fetchAuthToken(baseUrl, clientId, clientSecret);
-        List<ConfigEntry> configEntries = fetchConfig(baseUrl, loginResponse, ConfigEnvironment.valueOf(environment));
+        List<ConfigEntry> configEntries = fetchConfig(baseUrl);
         persistConfig(configEntries);
     }
 
-    private static LoginResponse fetchAuthToken(String baseUrl, String clientId, String clientSecret) {
-        RestTemplate restTemplate = new RestTemplate();
-
-        ClientLoginRequest request = ClientLoginRequest.builder()
-                .clientId(clientId)
-                .clientSecret(clientSecret)
-                .build();
-
-        HttpEntity<?> requestEntity = new HttpEntity<>(request);
-
-        try {
-            var responseEntity = restTemplate.exchange(
-                    String.format("%s/api/auth/client-login", baseUrl),
-                    HttpMethod.POST,
-                    requestEntity,
-                    LoginResponse.class
-            );
-
-            return responseEntity.getBody();
-        }
-        catch (Exception ex) {
-            throw new ConfigFetchException(ex.getMessage());
-        }
-    }
-
-    private static List<ConfigEntry> fetchConfig(String baseUrl, LoginResponse loginResponse, ConfigEnvironment environment) {
+    private static List<ConfigEntry> fetchConfig(String baseUrl) {
         RestTemplate restTemplate = new RestTemplate();
 
         HttpHeaders headers = new HttpHeaders();
-        headers.set(HttpHeaders.AUTHORIZATION, loginResponse.getTokenType() + " " + loginResponse.getAccessToken());
+        headers.set(HttpHeaders.AUTHORIZATION, SecurityConstants.TOKEN_PREFIX + " " + secretKey);
 
         HttpEntity<?> requestEntity = new HttpEntity<>(headers);
 
         try {
             var responseEntity = restTemplate.exchange(
-                    String.format("%s/api/configs/%s", baseUrl, environment),
+                    String.format("%s/api/configs/fetch", baseUrl),
                     HttpMethod.GET,
                     requestEntity,
                     new ParameterizedTypeReference<List<ConfigEntry>>() {}
@@ -231,14 +196,13 @@ public class ConfigServer {
     }
 
     public static void pullConfig() {
-        LoginResponse loginResponse = fetchAuthToken(baseUrl, clientId, clientSecret);
-        List<ConfigEntry> configEntries = fetchConfig(baseUrl, loginResponse, ConfigEnvironment.valueOf(environment));
+        List<ConfigEntry> configEntries = fetchConfig(baseUrl);
         persistConfig(configEntries);
         restart();
     }
 
     public static String getTopic() {
-        return clientId;
+        return StringUtils.isNotBlank(serviceId) ? serviceId : secretKey;
     }
 
     public static String getGroupId() {
